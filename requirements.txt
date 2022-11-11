@@ -1,0 +1,5 @@
+transformers==4.10.0
+datasets==2.5.2
+--extra-index-url https://download.pytorch.org/whl/cu113
+torch==1.12.1
+pydantic==1.10.2
