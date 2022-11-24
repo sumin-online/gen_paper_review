@@ -130,3 +130,8 @@ dmypy.json
 
 # VS Code
 .vscode/
+
+# Style files
+Makefile
+.flake8
+pyproject.toml
