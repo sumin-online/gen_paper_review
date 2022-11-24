@@ -1,3 +1,4 @@
+import argparse
 import json
 from pathlib import Path
 from typing import Any
@@ -30,7 +31,7 @@ def validate(model: Any, loader: DataLoader, device: torch.device) -> float:  # 
     return avg_loss
 
 
-def train() -> None:
+def train(args: argparse.Namespace) -> None:
     # Hyperparameters
     hp = Hyperparameter()
     device = torch.device(hp.device)
@@ -41,7 +42,7 @@ def train() -> None:
     preprocessor = Preprocessor(hp, config=config)
 
     # train/dev/test dataset
-    train_dataset, dev_dataset, test_dataset = preprocessor()
+    train_dataset, dev_dataset, test_dataset = preprocessor(args.task)
 
     train_loader = DataLoader(
         train_dataset, batch_size=hp.batch_size, shuffle=True, collate_fn=preprocessor.collate_fn
@@ -131,4 +132,13 @@ def train() -> None:
 
 
 if __name__ == "__main__":
-    train()
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "--task",
+        type=str,
+        choices=["tldr", "strength", "weakness", "accepted"],
+        help="Task to train",
+    )
+    args = parser.parse_args()
+
+    train(args)

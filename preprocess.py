@@ -101,7 +101,9 @@ class Preprocessor:
                 )
         return features
 
-    def preprocess(self) -> Tuple[PaperAssessDataset, PaperAssessDataset, PaperAssessDataset]:
+    def preprocess(
+        self, task: str
+    ) -> Tuple[PaperAssessDataset, PaperAssessDataset, PaperAssessDataset]:
         examples = self.read_data()
         print("Data reading complete")
         random.shuffle(examples)
@@ -121,8 +123,10 @@ class Preprocessor:
         test_dataset = PaperAssessDataset(features["test"])
         return train_dataset, dev_dataset, test_dataset
 
-    def __call__(self) -> Tuple[PaperAssessDataset, PaperAssessDataset, PaperAssessDataset]:
-        return self.preprocess()
+    def __call__(
+        self, task: str
+    ) -> Tuple[PaperAssessDataset, PaperAssessDataset, PaperAssessDataset]:
+        return self.preprocess(task)
 
     def _pad_ids(self, input_ids: List[List[int]], pad_id: int) -> List[List[int]]:
         # max_seq_len = max([len(x) for x in input_ids])
@@ -150,5 +154,5 @@ class Preprocessor:
 
 if __name__ == "__main__":
     preprocessor = Preprocessor(Hyperparameter(), BertConfig.from_pretrained("bert-base-uncased"))
-    train, dev, test = preprocessor()
+    train, dev, test = preprocessor("strength")
     print(len(train))
