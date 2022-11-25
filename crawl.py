@@ -1,3 +1,4 @@
+import argparse
 from glob import glob
 from pathlib import Path
 import pickle as pkl
@@ -88,6 +89,11 @@ def aggregating_files(venue: str, year: int) -> None:
 
 
 if __name__ == "__main__":
-    neurips_2021 = get_conference("NeurIPS", 2021)
-    get_papers("NeurIPS", 2021, neurips_2021)
-    aggregating_files("NeurIPS", 2021)
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--conference", "-c", type=str, required=True, help="Crawling conference")
+    parser.add_argument("--year", "-y", type=int, required=True, help="Conference year.")
+    args = parser.parse_args()
+
+    conference = get_conference(args.conference, args.year)
+    get_papers(args.conference, args.year, conference)
+    aggregating_files(args.conference, args.year)
