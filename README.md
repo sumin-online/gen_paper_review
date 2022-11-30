@@ -1,19 +1,19 @@
 # gen_paper_review
 
 ## To-do Lists
-[] Crawl more conferences
+[ ] Crawl more conferences
     [x] NeurIPS 2021
     [x] ICLR 2022
     [x] ICLR 2021
-[] Make dataset - generate review
-    [] TL;DR
-    [] Overview 
-    [] Strength
-    [] Weakness
-[] Make dataset - paper related
+[ ] Make dataset - generate review
+    [ ] TL;DR
+    [ ] Overview 
+    [ ] Strength
+    [ ] Weakness
+[ ] Make dataset - paper related
     [x] Abstract 
-    [] Introduction
-[] Report descriptive statistics of dataset
+    [ ] Introduction
+[ ] Report descriptive statistics of dataset
     - The total number of accepted and rejected papers for each conference
     - The number of papers that contain strength and weakness 
     - The number of sentences (?)
@@ -23,7 +23,7 @@
 [x] ICLR - 2022, 2021
 
 ## Workshops
-[] ICML 
+[ ] ICML 
     - 2022: No comments for all workshops
     - 2021
         - INNF: Only accepted papers are available
@@ -45,7 +45,7 @@
 [x] ACM IVA
     - 2020
         - GENEA: Only accepted papers are available but there is just one paper
-[] ACL
+[ ] ACL
     - 2022
         - LChange_LSCD: No paper available
         - WASSA_Shared_Task: No paper available 
@@ -84,7 +84,7 @@
         - SIGTYP: Not accessible
     - 2020
         - **NLP-COVID**: Available
-[] EMNLP
+[ ] EMNLP
     - 2022: All workshops are not available
     - 2020
         - **NLP-COVID**: Available
@@ -96,7 +96,7 @@
 [x] ICCV
     - 2021: All workshops are not available
     - 2019: All workshops are not available
-[] ECCV
+[ ] ECCV
     - 2022
         - MLAD: Not available 
         - VIPriors: Only accepted papers are available 
