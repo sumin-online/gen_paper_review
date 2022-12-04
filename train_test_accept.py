@@ -57,7 +57,7 @@ def validate(model: Any, loader: DataLoader, device: torch.device, Sigmoid, crit
 def train(args: argparse.Namespace) -> None:
     wandb.login(key="e0408f5d7b96be3d00be30b39eda0f1e259672ed")
     run = wandb.init(
-        name = "Paper Accpetance", ## Wandb creates random run names if you skip this field
+        name = "[New Data] Paper Accpetance", ## Wandb creates random run names if you skip this field
         reinit = True, ### Allows reinitalizing runs when you re-run this cell
         # run_id = ### Insert specific run id here if you want to resume a previous run
         # resume = "must" ### You need this to resume previous runs, but comment out reinit = True when using this
@@ -68,8 +68,8 @@ def train(args: argparse.Namespace) -> None:
 
     # Hyperparameters
     hp = Hyperparameter()
-    device = torch.device(hp.device)
-    save_dir = Path(hp.save_dir) / hp.pretrained_model
+    device = f"cuda:{args.gpu_num}" if torch.cuda.is_available() else "cpu"
+    save_dir = Path(hp.save_dir) / args.task / hp.pretrained_model
 
     # Preprocessor
     config = BertConfig.from_pretrained(hp.pretrained_model)
@@ -122,7 +122,7 @@ def train(args: argparse.Namespace) -> None:
     early_stopping = False
 
 
-    for epoch in range(10):#hp.max_epochs):
+    for epoch in range(10): #hp.max_epochs):
         print(f"[Epoch : {epoch}]")
         model.train()
         num_correct = 0
@@ -178,7 +178,7 @@ def train(args: argparse.Namespace) -> None:
                         json.dump(status, f, indent=4, ensure_ascii=False)
 
                     # Notice model saved
-                    model_save_path = "./checkpoints/accepted.pth"
+                    model_save_path = "./checkpoints/accepted/accepted.pth"
                     torch.save({"model_state_dict" : model.state_dict()}, model_save_path)
 
                     print(f"Model saved at step {global_step} / epoch {epoch}")
@@ -230,6 +230,8 @@ if __name__ == "__main__":
         help="Task to train",
         default = "accepted" 
     )
+    parser.add_argument("--gpu_num", type = int, default = 0, help = "the number of gpu")
+    
     args = parser.parse_args()
 
     print("[Starting]")

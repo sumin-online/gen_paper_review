@@ -48,58 +48,46 @@ class Preprocessor:
 
     def read_example(self, raw_data, task):
         all_data = []
-        for raw_datum in raw_data:
-            # 1) content
-            content = raw_datum.get("content")
-            if content is None:
-                continue
-
-            # 2) abstract
+        for content in raw_data:
+   
+            # 1) abstract
             abstract = content.get("abstract")
             if abstract is None:
                 continue
 
-            # 3) target
+            # 2) target
             if task == "tldr":
-                target = content.get("TL;DR")
+                target = content.get("tl_dr")
                     
             elif task == "accepted":
-                target = raw_datum.get("accepted")
+                target = content.get("accepted")
             
+            elif task == "weakness":
+                target = content.get("weaknesses")
+            
+            elif task == "strength":
+                target = content.get("strengths")
+            
+            else:
+                print("[Error] Task is not defined")
+                assert NotImplementedError
+
             if target is None:
                 continue
 
             # 4) save
-            datapoint = PaperTarget(abstract = abstract,
-                                    target = target)
+            # datapoint = PaperTarget(abstract = abstract,
+            #                         target = target)
+            datapoint = (abstract, target)
             all_data.append(datapoint)
+        
+        # remove duplication
+        all_data = list(set(all_data))
 
+        # type
+        all_data = [PaperTarget(abstract = x, target = y) for x, y in all_data]
         return all_data                    
             
-
-    def read_tldr(self, raw_data) -> List[PaperAssessExample]:
-
-
-        all_data = []
-        for raw_datum in raw_data:
-            content = raw_datum.get("content")
-            if content is None:
-                continue
-
-            abstract = content.get("abstract")
-            tldr = content.get("TL;DR")
-            accepted = content.get("accepted")
-
-            if tldr is None:
-                continue
-
-            datapoint = PaperAssessExample(abstract=abstract, 
-                                           tldr=tldr,
-                                           accepted=accepted)
-            all_data.append(datapoint)
-
-        return all_data
-
     def convert_examples_to_features(
         self, examples: List[PaperAssessExample], task = None
     ) -> List[PaperAssessFeature]:
@@ -145,21 +133,16 @@ class Preprocessor:
                     )
         return features
     
-    def read_pickle(self, path):
+    def read_data(self, task):
+        if task in ["tldr", "accepted"]:
+            path = "crawled/reviews_without_weaknesses.pkl" 
+        elif task in ["weakness", "strength"]:
+            path = "crawled/reviews_with_weaknesses.pkl"
+   
+
         with open(path, "rb") as f:
-            data = pickle.load(f)
-        return data
-
-    def read_data(self):
-        paths = ["crawled/NeurIPS_2021.pkl", 
-                 "crawled/ICLR_2021.pkl",
-                 "crawled/ICLR_2022.pkl"]
-
-        total_data = []
-        for path in paths:
-            total_data += self.read_pickle(path)
-        
-        return total_data
+            raw_data = pickle.load(f)
+        return raw_data
 
     def split_data(self, examples : list):
         random.shuffle(examples)
@@ -176,7 +159,7 @@ class Preprocessor:
     ) -> Tuple[PaperAssessDataset, PaperAssessDataset, PaperAssessDataset]:
 
         # Load dataset
-        raw_data = self.read_data()
+        raw_data = self.read_data(task)
         examples = self.read_example(raw_data, task)
         print("Data reading complete")
 
