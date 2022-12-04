@@ -16,7 +16,7 @@ def validate(model: Any, loader: DataLoader, device: torch.device) -> float:  # 
     total_loss = 0
     data_size = 0
     for batch in loader:
-        _, input_ids, label_ids = batch
+        input_ids, label_ids = batch
         input_ids = input_ids.to(device)
         label_ids = label_ids.to(device)
 
@@ -34,9 +34,9 @@ def validate(model: Any, loader: DataLoader, device: torch.device) -> float:  # 
 def train(args: argparse.Namespace) -> None:
     # Hyperparameters
     hp = Hyperparameter()
-    device = torch.device(hp.device)
-    save_dir = Path(hp.save_dir) / hp.pretrained_model
-
+    device = f"cuda:{args.gpu_num}" if torch.cuda.is_available() else "cpu"
+    save_dir = Path(hp.save_dir) / args.task / hp.pretrained_model
+ 
     # Preprocessor
     config = BertConfig.from_pretrained(hp.pretrained_model)
     preprocessor = Preprocessor(hp, config=config)
@@ -80,7 +80,7 @@ def train(args: argparse.Namespace) -> None:
     for epoch in range(hp.max_epochs):
         model.train()
         for batch in train_loader:
-            _, input_ids, label_ids = batch
+            input_ids, label_ids = batch
             input_ids = input_ids.to(device)
             label_ids = label_ids.to(device)
 
@@ -95,7 +95,7 @@ def train(args: argparse.Namespace) -> None:
             if global_step % hp.validation_steps == 0:
 
                 dev_loss = validate(model, dev_loader, device)
-                print(f"Step {global_step} | Dev loss: {dev_loss:.6f}")
+                print(f"[Epoch:{epoch}] Step {global_step} | Dev loss: {dev_loss:.6f}")
 
                 if dev_loss < min_dev_loss:
                     min_dev_loss = dev_loss
@@ -139,6 +139,14 @@ if __name__ == "__main__":
         choices=["tldr", "strength", "weakness", "accepted"],
         help="Task to train",
     )
+    parser.add_argument("--gpu_num", type = int, default = 0, help = "the number of gpu")
+
     args = parser.parse_args()
 
+    print("[Start]")
+    print(args)
+
     train(args)
+
+    print(args)
+    print("[End]")
