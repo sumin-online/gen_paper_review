@@ -16,6 +16,10 @@ class PaperAssessExample:
     tldr: str
     accepted: bool
 
+@dataclass
+class PaperTarget:
+    abstract: str
+    target: bool or str
 
 @dataclass
 class PaperAssessFeature:
@@ -40,12 +44,41 @@ class Preprocessor:
         self.tokenizer = BertTokenizer.from_pretrained(self.hp.pretrained_model)
         self.config = config
         self.pad_id = self.tokenizer.pad_token_id
-        self.max_seq_len = self.config.max_position_embeddings
+        self.max_seq_len = self.config.max_position_embeddings # 512
 
-    def read_data(self) -> List[PaperAssessExample]:
-        # Load dataset
-        with open("crawled/NeurIPS_2021.pkl", "rb") as f:
-            raw_data = pickle.load(f)
+    def read_example(self, raw_data, task):
+        all_data = []
+        for raw_datum in raw_data:
+            # 1) content
+            content = raw_datum.get("content")
+            if content is None:
+                continue
+
+            # 2) abstract
+            abstract = content.get("abstract")
+            if abstract is None:
+                continue
+
+            # 3) target
+            if task == "tldr":
+                target = content.get("TL;DR")
+                    
+            elif task == "accepted":
+                target = raw_datum.get("accepted")
+            
+            if target is None:
+                continue
+
+            # 4) save
+            datapoint = PaperTarget(abstract = abstract,
+                                    target = target)
+            all_data.append(datapoint)
+
+        return all_data                    
+            
+
+    def read_tldr(self, raw_data) -> List[PaperAssessExample]:
+
 
         all_data = []
         for raw_datum in raw_data:
@@ -60,18 +93,20 @@ class Preprocessor:
             if tldr is None:
                 continue
 
-            datapoint = PaperAssessExample(abstract=abstract, tldr=tldr, accepted=accepted)
+            datapoint = PaperAssessExample(abstract=abstract, 
+                                           tldr=tldr,
+                                           accepted=accepted)
             all_data.append(datapoint)
 
         return all_data
 
     def convert_examples_to_features(
-        self, examples: List[PaperAssessExample]
+        self, examples: List[PaperAssessExample], task = None
     ) -> List[PaperAssessFeature]:
         features = []
         for example in examples:
             document = example.abstract
-            tldr = example.tldr
+            target = example.target
 
             # Preprocess (If needed)
 
@@ -82,50 +117,101 @@ class Preprocessor:
                 + abstract_ids_truncated
                 + [self.tokenizer.sep_token_id]
             )
-            tldr_ids = self.tokenizer.encode(tldr)[1:-1] + [self.tokenizer.sep_token_id]
 
-            for i in range(len(tldr_ids)):
-                answer_input = tldr_ids[: i + 1]
-                answer_label = answer_input[i]
-                answer_input[i] = self.tokenizer.mask_token_id
-                input_ids = abstract_ids_input + answer_input
-                label_ids = [-100] * (len(input_ids) - 1) + [answer_label]
-                if len(input_ids) > self.max_seq_len:
-                    continue
-
+            if task == "accepted":
                 features.append(
                     PaperAssessFeature(
-                        input_ids=input_ids,
-                        label_ids=label_ids,
+                        input_ids = abstract_ids_input,
+                        label_ids = int(target),
                     )
                 )
+                
+            else:
+                target_ids = self.tokenizer.encode(target)[1:-1] + [self.tokenizer.sep_token_id]
+                for i in range(len(target_ids)):
+                    answer_input = target_ids[: i + 1]
+                    answer_label = answer_input[i]
+                    answer_input[i] = self.tokenizer.mask_token_id
+                    input_ids = abstract_ids_input + answer_input
+                    label_ids = [-100] * (len(input_ids) - 1) + [answer_label]
+                    if len(input_ids) > self.max_seq_len:
+                        continue
+
+                    features.append(
+                        PaperAssessFeature(
+                            input_ids=input_ids,
+                            label_ids=label_ids,
+                        )
+                    )
+        return features
+    
+    def read_pickle(self, path):
+        with open(path, "rb") as f:
+            data = pickle.load(f)
+        return data
+
+    def read_data(self):
+        paths = ["crawled/NeurIPS_2021.pkl", 
+                 "crawled/ICLR_2021.pkl",
+                 "crawled/ICLR_2022.pkl"]
+
+        total_data = []
+        for path in paths:
+            total_data += self.read_pickle(path)
+        
+        return total_data
+
+    def split_data(self, examples : list):
+        random.shuffle(examples)
+        split1, split2 = int(len(examples) * 0.8), int(len(examples) * 0.9)
+        features = {
+                "train": examples[:split1],
+                "dev": examples[split1:split2],
+                "test": examples[split2:],
+                }
         return features
 
     def preprocess(
         self, task: str
     ) -> Tuple[PaperAssessDataset, PaperAssessDataset, PaperAssessDataset]:
-        examples = self.read_data()
+
+        # Load dataset
+        raw_data = self.read_data()
+        examples = self.read_example(raw_data, task)
         print("Data reading complete")
-        random.shuffle(examples)
-        split1, split2 = int(len(examples) * 0.8), int(len(examples) * 0.9)
-        examples_split = {
-            "train": examples[:split1],
-            "dev": examples[split1:split2],
-            "test": examples[split2:],
-        }
-        features = {
-            split: self.convert_examples_to_features(ex) for split, ex in examples_split.items()
-        }
+
+        # Split train & val & test
+        examples = self.convert_examples_to_features(examples, task)
         print("Tokenization complete")
 
+        if task == "accepted":
+            accept_true, accept_false = [], []
+            for e in examples:
+                if e.label_ids:
+                    accept_true.append(e)
+                else:
+                    accept_false.append(e) 
+            
+            accept_true_split = self.split_data(accept_true)
+            accept_false_split = self.split_data(accept_false)
+            
+            # integrate
+            features = {}
+            for i in ["train", "dev", "test"]:
+                features[i] = accept_true_split[i] + accept_false_split[i]
+        else:
+            features = self.split_data(examples)
+      
+        # make dataset
         train_dataset = PaperAssessDataset(features["train"])
         dev_dataset = PaperAssessDataset(features["dev"])
         test_dataset = PaperAssessDataset(features["test"])
+
         return train_dataset, dev_dataset, test_dataset
 
     def __call__(
         self, task: str
-    ) -> Tuple[PaperAssessDataset, PaperAssessDataset, PaperAssessDataset]:
+    ) -> Tuple[PaperAssessDataset, PaperAssessDataset, PaperAssessDataset]: # train_dataset, dev_dataset, test_dataset 
         return self.preprocess(task)
 
     def _pad_ids(self, input_ids: List[List[int]], pad_id: int) -> List[List[int]]:
@@ -150,6 +236,12 @@ class Preprocessor:
         )
 
         return input_ids, label_id
+
+    def collate_fn_accept(self, batch: List[PaperAssessFeature]) -> Tuple[torch.Tensor, torch.Tensor]:
+        input_ids = torch.tensor(self._pad_ids([b.input_ids for b in batch], self.pad_id), dtype=torch.long)
+        label_id  = torch.tensor([b.label_ids for b in batch])
+        return input_ids, label_id
+
 
 
 if __name__ == "__main__":
