@@ -4,96 +4,93 @@ from pathlib import Path
 import pickle as pkl
 import random
 from time import sleep
-from typing import Any, Dict
+from typing import Any, Dict, List
 
-import requests
+import openreview
 from tqdm import tqdm
 
+def get_review_content(review: dict, weakness: bool) -> Dict[str, str]:
+    res = {}
+    if weakness:
+        try:
+            res["weaknesses"] = review["content"]["weaknesses"]
+            res["strengths"] = review["content"]["strengths"]
+            res["review"] = review["content"]["summary and contributions"]
+            res["rating"] = review["content"]["rating"]
+        except KeyError:
+            pass
 
-def get_conference(venue: str, year: int) -> Dict[str, Any]:
-    """
-    Crawl list of paper submitted to venue-year.
+    else:
+        try:
+            res["review"] = review["content"]["review"]
+            res["rating"] = review["content"]["rating"]
+        except KeyError:
+            pass
 
-    :param venue: conference name, str
-    :param year: year, int
-    :return res: metadata for all papers (accepted and rejected)
-
-    Remark: whether a focal paper is accepted or not is manually added
-    """
-    print("\nGet conference metadata...", end=" ")
-    url = f"https://api.openreview.net/notes?content.venue={venue}+{year}"
-    url_rejected = url + "+Submitted"
-
-    req_all = requests.get(url)
-    res_all = req_all.json()
-    for note in res_all["notes"]:
-        note["accepted"] = True
-
-    req_rejected = requests.get(url_rejected)
-    res_rejected = req_rejected.json()
-    for note in res_rejected["notes"]:
-        note["accepted"] = False
-
-    res = {
-        "count": res_all["count"] + res_rejected["count"],
-        "notes": res_all["notes"] + res_rejected["notes"],
-    }
-    print("done.")
     return res
 
+def get_reviews(venue: str, submissions: List[openreview.Note], weakness: bool) -> List[Dict[str, str]]:
+    result = []
+    for submission in submissions:
+        content: str = submission.content
+        _id: str = content.get("id")
+        tl_dr: str = content.get("TL;DR")
+        abstract: str = content.get("abstract")
+        title: str = content.get("title")
+        reviews: List[dict] = [reply for reply in submission.details["directReplies"]
+                   if reply["invitation"].endswith("Official_Review")]
+        decision: List[dict] = [reply for reply in submission.details["directReplies"]
+                    if reply["invitation"].endswith("Decision")]
+        if len(decision) != 1:
+            continue
 
-def get_papers(venue: str, year: int, metadata: Dict[str, Any]) -> None:
-    """
-    Get paper details.
+        decision: str = decision[0]["content"]["decision"]
+        accepted: bool = True if "Accept" in decision else False
+        for review in reviews:
+            temp = get_review_content(review, weakness)
+            if len(temp.keys()) != 0:
+                temp["id"] = _id
+                temp["venue"] = venue
+                temp["tl_dr"] = tl_dr
+                temp["abstract"] = abstract
+                temp["title"] = title
+                temp["accepted"] = accepted
+                result.append(temp)
+    return result
 
-    :param venue: conference name, str
-    :param year: year, int
-    :param metadata: output of get_conference function, dict
-    :return None
+def main(weakness: bool) -> None:
+    client = openreview.Client(baseurl="https://api.openreview.net")
+    venues: List[str] = client.get_group(id="venues").members
 
-    Remark: There are some responses with 1 contents, indicating that there is no comments.
-    """
-    print("\nGet papers...")
-    Path(f"{venue}_{year}/").mkdir(exist_ok=True)
-    for note in tqdm(metadata["notes"]):
-        url = f'https://api.openreview.net/notes?forum={note["id"]}'
-        req = requests.get(url)
-        res = req.json()
-        note["comments"] = res
-        pkl.dump(note, open(f'{venue}_{year}/{note["id"]}.pkl', "wb"))
+    result = []
+    for venue in tqdm(venues):
+        subs_blind: List[openreview.Note] = client.get_all_notes(invitation=venue+"/-/Blind_Submission",
+                                          details="directReplies")
+        subs_single: List[openreview.Note] = client.get_all_notes(invitation=venue+"/-/Submission",
+                                          details="directReplies")
+        submissions: List[openreview.Note] = subs_blind + subs_single
+        reviews: List[dict[str, str]] = get_reviews(venue, submissions, args.weaknesses)
+        result.extend(reviews)
 
-        # prevent from banning
-        sleep(random.uniform(1, 10))
+    filename = ("reviews_with_weaknesses.pkl" if args.weaknesses
+                else "reviews_without_weaknesses.pkl")
 
-    print("done.")
+    pkl.dump(result, open(f"crawled/{filename}", "wb"))
 
-
-def aggregating_files(venue: str, year: int) -> None:
-    """
-    Aggregate paper review details.
-
-    :param venue: conference name, str
-    :param year: year, int
-    :return None
-    """
-    Path("crawled").mkdir(exist_ok=True)
-    res = []
-    files = glob(f"{venue}_{year}/*.pkl")
-    print("\nAggregating responses...", end=" ")
-    for f in tqdm(files):
-        temp = pkl.load(open(f, "rb"))
-        res.append(temp)
-
-    pkl.dump(res, open(f"crawled/{venue}_{year}.pkl", "wb"))
-    print('done. \nResult file is automatically saved in "crawled" directory')
-
+def str_to_bool(value):
+    if value.lower() in {'false', 'f', '0', 'no', 'n'}:
+        return False
+    elif value.lower() in {'true', 't', '1', 'yes', 'y'}:
+        return True
+    raise ValueError(f'{value} is not a valid boolean value')
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--conference", "-c", type=str, required=True, help="Crawling conference")
-    parser.add_argument("--year", "-y", type=int, required=True, help="Conference year.")
+    parser.add_argument("--weaknesses", "-w", 
+                        type=str_to_bool, 
+                        nargs="?",
+                        const=True, 
+                        default=True, 
+                        help="Whether crawl weaknesses or not")
     args = parser.parse_args()
-
-    conference = get_conference(args.conference, args.year)
-    get_papers(args.conference, args.year, conference)
-    aggregating_files(args.conference, args.year)
+    main(args.weaknesses)
