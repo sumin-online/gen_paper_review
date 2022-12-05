@@ -34,9 +34,9 @@ def validate(model: Any, loader: DataLoader, device: torch.device) -> float:  # 
 def train(args: argparse.Namespace) -> None:
     # Hyperparameters
     hp = Hyperparameter()
-    device = f"cuda:{args.gpu_num}" if torch.cuda.is_available() else "cpu"
+    device = torch.device(f"cuda:{args.gpu_num}" if torch.cuda.is_available() else "cpu")
     save_dir = Path(hp.save_dir) / args.task / hp.pretrained_model
- 
+
     # Preprocessor
     config = BertConfig.from_pretrained(hp.pretrained_model)
     preprocessor = Preprocessor(hp, config=config)
@@ -139,7 +139,7 @@ if __name__ == "__main__":
         choices=["tldr", "strength", "weakness", "accepted"],
         help="Task to train",
     )
-    parser.add_argument("--gpu_num", type = int, default = 0, help = "the number of gpu")
+    parser.add_argument("--gpu_num", type=int, default=0, help="the number of gpu")
 
     args = parser.parse_args()
 
