@@ -53,9 +53,17 @@ def validate(model: Any, loader: DataLoader, device: torch.device, Sigmoid, crit
     avg_acc  = (num_correct / num_samples).item()
     return avg_loss, avg_acc
 
+def test(model_save_path, model, test_loader, device, Sigmoid, criterion):
+    print("[Testing]")
+    dic = torch.load(model_save_path)
+    model.load_state_dict(dic["model_state_dict"])
+    test_loss, test_acc = validate(model, test_loader, device, Sigmoid, criterion)
+    test_dict = {"test_loss": test_loss, "test_acc":test_acc}
+    return test_dict
+
 
 def train(args: argparse.Namespace) -> None:
-    wandb.login(key="e0408f5d7b96be3d00be30b39eda0f1e259672ed")
+    wandb.login(key="")
     run = wandb.init(
         name = "[New Data] Paper Accpetance", ## Wandb creates random run names if you skip this field
         reinit = True, ### Allows reinitalizing runs when you re-run this cell
@@ -115,12 +123,16 @@ def train(args: argparse.Namespace) -> None:
     criterion = nn.BCELoss().to(device)
     Sigmoid = nn.Sigmoid().to(device)
 
+    if args.test_only:
+        test_dict = test(args.model_pretrain_path, model, test_loader, device, Sigmoid, criterion)
+        print(test_dict)
+        wandb.log(test_dict)
+        return
 
     min_dev_loss = float("inf")
     global_step = 0
     patience = 0
     early_stopping = False
-
 
     for epoch in range(10): #hp.max_epochs):
         print(f"[Epoch : {epoch}]")
@@ -178,7 +190,7 @@ def train(args: argparse.Namespace) -> None:
                         json.dump(status, f, indent=4, ensure_ascii=False)
 
                     # Notice model saved
-                    model_save_path = "./checkpoints/accepted/accepted.pth"
+                    model_save_path = args.model_save_path
                     torch.save({"model_state_dict" : model.state_dict()}, model_save_path)
 
                     print(f"Model saved at step {global_step} / epoch {epoch}")
@@ -209,17 +221,11 @@ def train(args: argparse.Namespace) -> None:
         #     break
 
     # Test
-    print("[Testing]")
-
-    dic = torch.load(model_save_path)
-    model.load_state_dict(dic["model_state_dict"])
-    test_loss, test_acc = validate(model, test_loader, device, Sigmoid, criterion)
-    test_dict = {"test_loss": test_loss, "test_acc":test_acc}
-    
+    test_dict = test(model_save_path, model, test_loader, device, Sigmoid, criterion)
     print(test_dict)
     wandb.log(test_dict)
-
     run.finish()
+    return
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -231,7 +237,10 @@ if __name__ == "__main__":
         default = "accepted" 
     )
     parser.add_argument("--gpu_num", type = int, default = 0, help = "the number of gpu")
-    
+    parser.add_argument("--model_pretrain_path", type = str, default = "./checkpoints/accepted/accepted.pth")
+    parser.add_argument("--model_save_path", type = str, default = "./checkpoints/accepted/accepted.pth")
+    parser.add_argument("--test_only", type = bool, default = False, help = "Whether only test mode or not") 
+
     args = parser.parse_args()
 
     print("[Starting]")
