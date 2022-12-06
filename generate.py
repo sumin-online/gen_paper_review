@@ -1,16 +1,19 @@
 import argparse
 import json
 from pathlib import Path
-from typing import Any, List
+import pickle
+import random
+from typing import Any
 
 import torch
 from transformers import BertConfig, BertForMaskedLM, BertTokenizer
 
 from hparams import Hyperparameter
-import pickle
-import random
 
-def generate(abstract: str, model: Any, tokenizer: Any, max_length: int = 15, device = None) -> str:
+
+def generate(
+    abstract: str, model: Any, tokenizer: Any, device: torch.device, max_length: int = 15
+) -> str:
     model.eval()
 
     abstract_ids = tokenizer.encode(abstract)[1:-1]
@@ -22,7 +25,7 @@ def generate(abstract: str, model: Any, tokenizer: Any, max_length: int = 15, de
         gen_input_str = gen_str + " [MASK]"
         gen_input_ids = tokenizer.encode(gen_input_str)[1:-1]
         input_ids_list = (
-              [tokenizer.cls_token_id]
+            [tokenizer.cls_token_id]
             + abstract_ids_truncated
             + [tokenizer.sep_token_id]
             + gen_input_ids
@@ -31,7 +34,7 @@ def generate(abstract: str, model: Any, tokenizer: Any, max_length: int = 15, de
         input_ids = torch.tensor([input_ids_list], dtype=torch.long).to(device)
 
         with torch.no_grad():
-            output_logits = model(input_ids).logits # 1 x seq x 30522
+            output_logits = model(input_ids).logits  # 1 x seq x 30522
         mask_logits = output_logits[0, -1, :]
         top_idx = torch.argmax(mask_logits).cpu().item()
 
@@ -46,7 +49,8 @@ def generate(abstract: str, model: Any, tokenizer: Any, max_length: int = 15, de
 
     return gen_str
 
-def main(args):
+
+def main(args: argparse.Namespace) -> None:
     if args.task == "tldr":
         path = "crawled/reviews_with_weaknesses.pkl"
     else:
@@ -54,19 +58,19 @@ def main(args):
     # dataset
     with open(path, "rb") as f:
         raw_data = pickle.load(f)
-    
+
     abstract_data = []
     for paper in raw_data:
         abstract_data.append(paper["abstract"])
-    
+
     abstract_data = list(set(abstract_data))
-    
+
     # model
     load_dir = Path(f"checkpoints/{args.task}/bert-base-uncased")
     with open(load_dir / "hp.json") as f:
         hp_dict = json.load(f)
     hparams = Hyperparameter(**hp_dict)
-    device = f"cuda:{args.gpu_num}" if torch.cuda.is_available() else "cpu"
+    device = torch.device(f"cuda:{args.gpu_num}" if torch.cuda.is_available() else "cpu")
     tokenizer = BertTokenizer.from_pretrained(hparams.pretrained_model)
 
     config = BertConfig.from_pretrained(load_dir)
@@ -79,8 +83,9 @@ def main(args):
         abstract = abstract_data[idx]
 
         print(f"\n[Abstract] {abstract}")
-        gen_str = generate(abstract, model, tokenizer, max_length = 50, device = device)
+        gen_str = generate(abstract, model, tokenizer, max_length=50, device=device)
         print(f"\n[{args.task}] {gen_str}")
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -90,8 +95,8 @@ if __name__ == "__main__":
         choices=["tldr", "strength", "weakness"],
         help="Task to train",
     )
-    parser.add_argument("--gpu_num", type = int, default = 0, help = "the number of gpu")
-    parser.add_argument("--gen_num", type = int, default = 4, help = "the number of generation")
+    parser.add_argument("--gpu_num", type=int, default=0, help="the number of gpu")
+    parser.add_argument("--gen_num", type=int, default=4, help="the number of generation")
 
     args = parser.parse_args()
 

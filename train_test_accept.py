@@ -1,7 +1,7 @@
 import argparse
 import json
 from pathlib import Path
-from typing import Any
+from typing import Any, Dict, Tuple, Union
 
 import torch
 import torch.nn as nn
@@ -13,7 +13,7 @@ from hparams import Hyperparameter
 from preprocess import Preprocessor
 
 
-def get_acc(scores, y):
+def get_acc(scores: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
     predictions = (scores > 0.5).long()
     num_correct = (predictions == y).sum()
     num_samples = predictions.size(0)
@@ -22,7 +22,7 @@ def get_acc(scores, y):
     return acc
 
 
-def validate(model: Any, loader: DataLoader, device: torch.device, Sigmoid, criterion):  # type: ignore[type-arg]
+def validate(model: Any, loader: DataLoader, device: torch.device, criterion: nn.Module) -> Tuple[float, float]:  # type: ignore[type-arg]
     model.eval()
     total_loss = 0
     num_correct = 0
@@ -39,7 +39,7 @@ def validate(model: Any, loader: DataLoader, device: torch.device, Sigmoid, crit
             if len(prediction.shape) < 1:  # for batch size = 1
                 prediction = prediction.reshape(1)
 
-            scores = Sigmoid(prediction)
+            scores = torch.sigmoid(prediction)
             loss = criterion(scores.float(), label_ids.float())
 
             predictions = (scores > 0.5).long()
@@ -49,16 +49,22 @@ def validate(model: Any, loader: DataLoader, device: torch.device, Sigmoid, crit
         total_loss += loss.item()
 
     avg_loss = total_loss / len(loader)
-    avg_acc = (num_correct / num_samples).item()
+    avg_acc = (num_correct / num_samples).item()  # type: ignore[attr-defined]
     return avg_loss, avg_acc
 
 
-def test(model_save_path, model, test_loader, device, Sigmoid, criterion):
+def test(
+    model_save_path: Union[str, Path],
+    model: nn.Module,
+    test_loader: DataLoader,  # type: ignore[type-arg]
+    device: torch.device,
+    criterion: nn.Module,
+) -> Dict[str, float]:
     print("[Testing]")
     dic = torch.load(model_save_path)
     model.load_state_dict(dic["model_state_dict"])
-    test_loss, test_acc = validate(model, test_loader, device, Sigmoid, criterion)
-    test_dict = {"test_loss": test_loss, "test_acc":test_acc}
+    test_loss, test_acc = validate(model, test_loader, device, criterion)
+    test_dict = {"test_loss": test_loss, "test_acc": test_acc}
     return test_dict
 
 
@@ -76,15 +82,15 @@ def train(args: argparse.Namespace) -> None:
 
     # Hyperparameters
     hp = Hyperparameter()
-    device = f"cuda:{args.gpu_num}" if torch.cuda.is_available() else "cpu"
+    device = torch.device(f"cuda:{args.gpu_num}" if torch.cuda.is_available() else "cpu")
     save_dir = Path(hp.save_dir) / args.task / hp.pretrained_model
 
     # Preprocessor
     config = BertConfig.from_pretrained(hp.pretrained_model)
-    preprocessor = Preprocessor(hp, config=config)
+    preprocessor = Preprocessor(hp, config=config, task=args.task)
 
     # train/dev/test dataset
-    train_dataset, dev_dataset, test_dataset = preprocessor(args.task)
+    train_dataset, dev_dataset, test_dataset = preprocessor()
 
     train_loader = DataLoader(
         train_dataset,
@@ -125,19 +131,17 @@ def train(args: argparse.Namespace) -> None:
     ]
     optimizer = AdamW(optimizer_grouped_parameters, lr=hp.learning_rate, eps=1e-8)  # type: ignore[arg-type]
     criterion = nn.BCELoss().to(device)
-    Sigmoid = nn.Sigmoid().to(device)
 
     if args.test_only:
-        test_dict = test(args.model_pretrain_path, model, test_loader, device, Sigmoid, criterion)
+        test_dict = test(args.model_pretrain_path, model, test_loader, device, criterion)
         print(test_dict)
         wandb.log(test_dict)
         return
-    
+
     min_dev_loss = float("inf")
     global_step = 0
 
-
-    for epoch in range(10): #hp.max_epochs):
+    for epoch in range(10):  # hp.max_epochs):
         print(f"[Epoch : {epoch}]")
         model.train()
         num_correct = 0
@@ -155,7 +159,7 @@ def train(args: argparse.Namespace) -> None:
             if len(prediction.shape) < 1:  # for batch size = 1
                 prediction = prediction.reshape(1)
 
-            scores = Sigmoid(prediction)
+            scores = torch.sigmoid(prediction)
             loss = criterion(scores.float(), label_ids.float())
             total_loss += loss.item()
 
@@ -169,12 +173,12 @@ def train(args: argparse.Namespace) -> None:
             global_step += 1
 
             train_step_loss = total_loss / (idx + 1)
-            train_step_acc = (num_correct / num_samples).item()
+            train_step_acc = (num_correct / num_samples).item()  # type: ignore[attr-defined]
 
             # validate
             dev_loss, dev_acc = None, None
             if global_step % 1 == 0:
-                dev_loss, dev_acc = validate(model, dev_loader, device, Sigmoid, criterion)
+                dev_loss, dev_acc = validate(model, dev_loader, device, criterion)
 
                 if dev_loss < min_dev_loss:
                     min_dev_loss = dev_loss
@@ -191,7 +195,7 @@ def train(args: argparse.Namespace) -> None:
 
                     # Notice model saved
                     model_save_path = args.model_save_path
-                    torch.save({"model_state_dict" : model.state_dict()}, model_save_path)
+                    torch.save({"model_state_dict": model.state_dict()}, model_save_path)
 
                     print(f"Model saved at step {global_step} / epoch {epoch}")
 
@@ -212,7 +216,7 @@ def train(args: argparse.Namespace) -> None:
         wandb.log(epoch_result)
 
     # Test
-    test_dict = test(model_save_path, model, test_loader, device, Sigmoid, criterion)
+    test_dict = test(model_save_path, model, test_loader, device, criterion)
     print(test_dict)
     wandb.log(test_dict)
     run.finish()
@@ -228,10 +232,16 @@ if __name__ == "__main__":
         help="Task to train",
         default="accepted",
     )
-    parser.add_argument("--gpu_num", type = int, default = 0, help = "the number of gpu")
-    parser.add_argument("--model_pretrain_path", type = str, default = "./checkpoints/accepted/accepted.pth")
-    parser.add_argument("--model_save_path", type = str, default = "./checkpoints/accepted/accepted.pth")
-    parser.add_argument("--test_only", type = bool, default = False, help = "Whether only test mode or not")
+    parser.add_argument("--gpu_num", type=int, default=0, help="the number of gpu")
+    parser.add_argument(
+        "--model_pretrain_path", type=str, default="./checkpoints/accepted/accepted.pth"
+    )
+    parser.add_argument(
+        "--model_save_path", type=str, default="./checkpoints/accepted/accepted.pth"
+    )
+    parser.add_argument(
+        "--test_only", type=bool, default=False, help="Whether only test mode or not"
+    )
 
     args = parser.parse_args()
 

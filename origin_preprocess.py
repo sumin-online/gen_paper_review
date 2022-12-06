@@ -105,9 +105,6 @@ class Preprocessor:
         self, task: str
     ) -> Tuple[PaperAssessDataset, PaperAssessDataset, PaperAssessDataset]:
         examples = self.read_data()
-        print("here", len(examples))
-
-        exit()
 
         print("Data reading complete")
         random.shuffle(examples)

@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 import pickle
 import random
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, List, Tuple, Union
 
 import torch
 from torch.utils.data import Dataset
@@ -41,14 +41,15 @@ class PaperAssessDataset(Dataset):  # type: ignore[type-arg]
 
 
 class Preprocessor:
-    def __init__(self, hp: Hyperparameter, config: Any):
+    def __init__(self, hp: Hyperparameter, config: Any, task: str):
         self.hp = hp
         self.tokenizer = BertTokenizer.from_pretrained(self.hp.pretrained_model)
         self.config = config
         self.pad_id = self.tokenizer.pad_token_id
         self.max_seq_len = self.config.max_position_embeddings  # 512
+        self.task = task
 
-    def read_example(self, raw_data: Any, task: str) -> List[PaperTarget]:
+    def read_example(self, raw_data: Any) -> List[PaperTarget]:
         all_data_list = []
         for content in raw_data:
 
@@ -58,16 +59,16 @@ class Preprocessor:
                 continue
 
             # 2) target
-            if task == "tldr":
+            if self.task == "tldr":
                 target = content.get("tl_dr")
 
-            elif task == "accepted":
+            elif self.task == "accepted":
                 target = content.get("accepted")
 
-            elif task == "weakness":
+            elif self.task == "weakness":
                 target = content.get("weaknesses")
 
-            elif task == "strength":
+            elif self.task == "strength":
                 target = content.get("strengths")
 
             else:
@@ -87,9 +88,7 @@ class Preprocessor:
         all_data = [PaperTarget(abstract=x, target=y) for x, y in all_data_nodup]
         return all_data
 
-    def convert_examples_to_features(
-        self, examples: List[PaperTarget], task: Optional[str] = None
-    ) -> List[PaperAssessFeature]:
+    def convert_examples_to_features(self, examples: List[PaperTarget]) -> List[PaperAssessFeature]:
         features = []
         for example in examples:
             document = example.abstract
@@ -105,7 +104,7 @@ class Preprocessor:
                 + [self.tokenizer.sep_token_id]
             )
 
-            if task == "accepted":
+            if self.task == "accepted":
                 features.append(
                     PaperAssessFeature(
                         input_ids=abstract_ids_input,
@@ -132,10 +131,10 @@ class Preprocessor:
                     )
         return features
 
-    def read_data(self, task: str) -> Any:
-        if task in ["tldr", "accepted"]:
+    def read_data(self) -> Any:
+        if self.task in ["tldr", "accepted"]:
             path = "crawled/reviews_without_weaknesses.pkl"
-        elif task in ["weakness", "strength"]:
+        elif self.task in ["weakness", "strength"]:
             path = "crawled/reviews_with_weaknesses.pkl"
         else:
             raise ValueError("Undefined task")
@@ -154,26 +153,24 @@ class Preprocessor:
         }
         return features
 
-    def preprocess(
-        self, task: str
-    ) -> Tuple[PaperAssessDataset, PaperAssessDataset, PaperAssessDataset]:
+    def preprocess(self) -> Tuple[PaperAssessDataset, PaperAssessDataset, PaperAssessDataset]:
 
         # Load dataset
-        raw_data = self.read_data(task)
-        examples = self.read_example(raw_data, task)
+        raw_data = self.read_data()
+        examples = self.read_example(raw_data)
         print("Data reading complete")
 
         # Split train & val & test
-        examples = self.convert_examples_to_features(examples, task)
+        features_all = self.convert_examples_to_features(examples)
         print("Tokenization complete")
 
-        if task == "accepted":
+        if self.task == "accepted":
             accept_true, accept_false = [], []
-            for e in examples:
-                if e.label_ids:
-                    accept_true.append(e)
+            for feature in features_all:
+                if feature.label_ids:
+                    accept_true.append(feature)
                 else:
-                    accept_false.append(e)
+                    accept_false.append(feature)
 
             accept_true_split = self.split_data(accept_true)
             accept_false_split = self.split_data(accept_false)
@@ -183,7 +180,7 @@ class Preprocessor:
             for i in ["train", "dev", "test"]:
                 features[i] = accept_true_split[i] + accept_false_split[i]
         else:
-            features = self.split_data(examples)
+            features = self.split_data(features_all)
 
         # make dataset
         train_dataset = PaperAssessDataset(features["train"])
@@ -193,11 +190,11 @@ class Preprocessor:
         return train_dataset, dev_dataset, test_dataset
 
     def __call__(
-        self, task: str
+        self,
     ) -> Tuple[
         PaperAssessDataset, PaperAssessDataset, PaperAssessDataset
     ]:  # train_dataset, dev_dataset, test_dataset
-        return self.preprocess(task)
+        return self.preprocess()
 
     def _pad_ids(self, input_ids: List[List[int]], pad_id: int) -> List[List[int]]:
         # max_seq_len = max([len(x) for x in input_ids])
@@ -216,11 +213,14 @@ class Preprocessor:
         input_ids = torch.tensor(
             self._pad_ids([b.input_ids for b in batch], self.pad_id), dtype=torch.long
         )
-        label_id = torch.tensor(
-            self._pad_ids([b.label_ids for b in batch], self.pad_id), dtype=torch.long
-        )
+        if self.task == "accepted":
+            label_ids = torch.tensor([b.label_ids for b in batch], dtype=torch.long)
+        else:
+            label_ids = torch.tensor(
+                self._pad_ids([b.label_ids for b in batch], self.pad_id), dtype=torch.long  # type: ignore[misc]
+            )
 
-        return input_ids, label_id
+        return input_ids, label_ids
 
     def collate_fn_accept(
         self, batch: List[PaperAssessFeature]
@@ -233,6 +233,8 @@ class Preprocessor:
 
 
 if __name__ == "__main__":
-    preprocessor = Preprocessor(Hyperparameter(), BertConfig.from_pretrained("bert-base-uncased"))
-    train, dev, test = preprocessor("strength")
+    preprocessor = Preprocessor(
+        Hyperparameter(), BertConfig.from_pretrained("bert-base-uncased"), "strength"
+    )
+    train, dev, test = preprocessor()
     print(len(train))

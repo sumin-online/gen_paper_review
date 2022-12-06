@@ -39,10 +39,10 @@ def train(args: argparse.Namespace) -> None:
 
     # Preprocessor
     config = BertConfig.from_pretrained(hp.pretrained_model)
-    preprocessor = Preprocessor(hp, config=config)
+    preprocessor = Preprocessor(hp, config=config, task=args.task)
 
     # train/dev/test dataset
-    train_dataset, dev_dataset, test_dataset = preprocessor(args.task)
+    train_dataset, dev_dataset, test_dataset = preprocessor()
 
     train_loader = DataLoader(
         train_dataset, batch_size=hp.batch_size, shuffle=True, collate_fn=preprocessor.collate_fn
