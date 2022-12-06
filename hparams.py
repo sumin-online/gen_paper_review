@@ -14,7 +14,7 @@ class Hyperparameter(BaseModel):
     batch_size: int = 8
 
     # Training
-    max_epochs: int = 100
+    max_epochs: int = 20
     save_dir: str = "checkpoints/"
     validation_steps: int = 200
     patience_steps: int = 2000

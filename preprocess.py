@@ -96,7 +96,7 @@ class Preprocessor:
 
             # Preprocess (If needed)
 
-            abstract_ids = self.tokenizer.encode(document)[1:-1]
+            abstract_ids = self.tokenizer.encode(document, truncation=True)[1:-1]
             abstract_ids_truncated = abstract_ids[: int(0.9 * self.max_seq_len)]
             abstract_ids_input = (
                 [self.tokenizer.cls_token_id]
