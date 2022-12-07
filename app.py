@@ -21,13 +21,16 @@ def get_analysis(abstract: str, task: str) -> Union[str, float]:
     tokenizer = BertTokenizer.from_pretrained(hparams.pretrained_model)
     
     config = BertConfig.from_pretrained(load_dir)
-    model = BertForMaskedLM.from_pretrained(load_dir, config=config).to(device)
     if task == "accepted":
+        model = BertForMaskedLM.from_pretrained("bert-base-uncased", config=config).to(device)
         model.cls.predictions.decoder = nn.Linear(768, 1).to(device)
+        
+        model.load_state_dict(torch.load("checkpoints/accepted/accepted.pth")["model_state_dict"])
+        
         model.eval()
         
         inputs = tokenizer(abstract, truncation=True)
-        inputs = {key: val.to(device) for key, val in inputs.items()}
+        inputs = {key: torch.tensor([val]).to(device) for key, val in inputs.items()}
         with torch.no_grad():
             output = model(**inputs)
         prediction = output.logits[:, 0, :].squeeze()
@@ -38,6 +41,7 @@ def get_analysis(abstract: str, task: str) -> Union[str, float]:
         return scores
    
     else:
+        model = BertForMaskedLM.from_pretrained(load_dir, config=config).to(device)
         gen_str = generate(abstract, model, tokenizer, max_length=50, device=device)
     
         return gen_str
@@ -73,21 +77,22 @@ def main():
     with button_columns[3]:
         run_accepted = st.button("Accepted?")
         
-    if gen_tldr:
-        tldr = get_analysis(abstract, "tldr")
-        st.session_state["tldr"] = tldr
-    
-    if gen_strength:
-        strength = get_analysis(abstract, "strength")
-        st.session_state["strength"] = strength
+    with st.spinner("Analyzing paper..."):
+        if gen_tldr:
+            tldr = get_analysis(abstract, "tldr")
+            st.session_state["tldr"] = tldr
         
-    if gen_weakness:
-        weakness = get_analysis(abstract, "weakness")
-        st.session_state["weakness"] = weakness
-    
-    # if run_accepted:
-    #     accepted_score = get_analysis(abstract, "accepted")
-    #     st.session_state["accepted"] = accepted_score
+        if gen_strength:
+            strength = get_analysis(abstract, "strength")
+            st.session_state["strength"] = strength
+            
+        if gen_weakness:
+            weakness = get_analysis(abstract, "weakness")
+            st.session_state["weakness"] = weakness
+        
+        if run_accepted:
+            accepted_score = get_analysis(abstract, "accepted")
+            st.session_state["accepted"] = accepted_score
         
     st.write("* * *")
     st.header("Result")
@@ -102,9 +107,9 @@ def main():
     st.text(st.session_state["weakness"])
     
     st.subheader("Acceptance score")
-    st.text("Working In Progress...")
-    # st.text(st.session_state["accepted"])
-    # st.write("**Accepted!**" if st.session_state["accepted"] > 0.5 else "Rejected")
+    # st.text("Working In Progress...")
+    st.text(st.session_state["accepted"])
+    st.write("**Accepted!**" if st.session_state["accepted"] > 0.5 else "Rejected")
 
 if __name__ == "__main__":
     main()
