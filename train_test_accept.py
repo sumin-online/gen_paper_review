@@ -35,7 +35,7 @@ def validate(model: Any, loader: DataLoader, device: torch.device, criterion: nn
 
         with torch.no_grad():
             output = model(input_ids)
-            prediction = output.logits[:, -1, :].squeeze()
+            prediction = output.logits[:, 0, :].squeeze()
             if len(prediction.shape) < 1:  # for batch size = 1
                 prediction = prediction.reshape(1)
 
@@ -69,16 +69,19 @@ def test(
 
 
 def train(args: argparse.Namespace) -> None:
-    wandb.login(key="")
-    run = wandb.init(
-        name="[New Data] Paper Accpetance",  # Wandb creates random run names if you skip this field
-        reinit=True,  # Allows reinitalizing runs when you re-run this cell
-        # run_id = # Insert specific run id here if you want to resume a previous run
-        # resume = "must" # You need this to resume previous runs, but comment out reinit = True when using this
-        project="IDL",  # Project should be created in your wandb account
-        # config = configParaser # Wandb Config for your run
-        entity="gyuseoklee",
-    )
+    if args.use_wandb:
+        wandb.login(key="")
+        run = wandb.init(
+            name="[New Data] Paper Accpetance",  # Wandb creates random run names if you skip this field
+            reinit=True,  # Allows reinitalizing runs when you re-run this cell
+            # run_id = # Insert specific run id here if you want to resume a previous run
+            # resume = "must" # You need this to resume previous runs, but comment out reinit = True when using this
+            project="IDL",  # Project should be created in your wandb account
+            # config = configParaser # Wandb Config for your run
+            entity="gyuseoklee",
+        )
+    else:
+        run = None
 
     # Hyperparameters
     hp = Hyperparameter()
@@ -135,13 +138,14 @@ def train(args: argparse.Namespace) -> None:
     if args.test_only:
         test_dict = test(args.model_pretrain_path, model, test_loader, device, criterion)
         print(test_dict)
-        wandb.log(test_dict)
+        if args.use_wandb:
+            wandb.log(test_dict)
         return
 
     min_dev_loss = float("inf")
     global_step = 0
 
-    for epoch in range(10):  # hp.max_epochs):
+    for epoch in range(hp.max_epochs):  # hp.max_epochs):
         print(f"[Epoch : {epoch}]")
         model.train()
         num_correct = 0
@@ -155,7 +159,7 @@ def train(args: argparse.Namespace) -> None:
             label_ids = label_ids.to(device)
 
             output = model(input_ids)
-            prediction = output.logits[:, -1, :].squeeze()
+            prediction = output.logits[:, 0, :].squeeze()
             if len(prediction.shape) < 1:  # for batch size = 1
                 prediction = prediction.reshape(1)
 
@@ -177,7 +181,7 @@ def train(args: argparse.Namespace) -> None:
 
             # validate
             dev_loss, dev_acc = None, None
-            if global_step % 1 == 0:
+            if global_step % 20 == 0:
                 dev_loss, dev_acc = validate(model, dev_loader, device, criterion)
 
                 if dev_loss < min_dev_loss:
@@ -200,6 +204,7 @@ def train(args: argparse.Namespace) -> None:
                     print(f"Model saved at step {global_step} / epoch {epoch}")
 
             # result
+
             step_result = {
                 "train_step_acc": train_step_acc,
                 "train_step_loss": train_step_loss,
@@ -207,20 +212,24 @@ def train(args: argparse.Namespace) -> None:
                 "valid_loss": dev_loss,
             }
 
-            print(f"[Epoch : {epoch:04d}] global_step : {global_step}")
+            print(
+                f"[Epoch : {epoch:04d}] global_step : {global_step} | loss : {dev_loss:.6f} | acc: {dev_acc:.6f}"
+            )
             print(step_result)
-            wandb.log(step_result)
+            if args.use_wandb:
+                wandb.log(step_result)
 
         # epoch_log
-        epoch_result = {"train_epoch_loss": train_step_loss, "train_epoch_acc": train_step_acc}
-        wandb.log(epoch_result)
+        if args.use_wandb:
+            epoch_result = {"train_epoch_loss": train_step_loss, "train_epoch_acc": train_step_acc}
+            wandb.log(epoch_result)
 
     # Test
     test_dict = test(model_save_path, model, test_loader, device, criterion)
     print(test_dict)
-    wandb.log(test_dict)
-    run.finish()
-    return
+    if args.use_wandb:
+        wandb.log(test_dict)
+        run.finish()
 
 
 if __name__ == "__main__":
@@ -242,6 +251,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--test_only", type=bool, default=False, help="Whether only test mode or not"
     )
+    parser.add_argument("--run_wandb", action="store_true", help="Use WandB logging")
 
     args = parser.parse_args()
 
