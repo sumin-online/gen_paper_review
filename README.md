@@ -77,16 +77,3 @@ streamlit run app.py
 By default, you can check project in following address
 - http://[Server IP]:8501
 
-## To-do Lists
-- [x] Crawl more conferences - All venues including conferences, workshops, tutorials, tracks were crawled!
-- [x] Make dataset - generate review
-    - [x] TL;DR
-    - [x] Overview (Summary of review)
-    - [x] Strength
-    - [x] Weakness
-- [x] Make dataset - paper related
-    - [x] Abstract
-- [ ] Report descriptive statistics of dataset
-    - The total number of accepted and rejected papers for each conference
-    - The number of papers that contain strength and weakness 
-    - The number of sentences (?)

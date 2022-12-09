@@ -50,6 +50,13 @@ class Preprocessor:
         self.task = task
 
     def read_example(self, raw_data: Any) -> List[PaperTarget]:
+        """
+        Read example from raw data to predefined class PaperTarget.
+
+        :param raw_data: Collected data, raw.
+
+        :return: List of PaperTarget.
+        """
         all_data_list = []
         for content in raw_data:
 
@@ -89,6 +96,13 @@ class Preprocessor:
         return all_data
 
     def convert_examples_to_features(self, examples: List[PaperTarget]) -> List[PaperAssessFeature]:
+        """
+        Convert data examples into features which become the input of model.
+
+        :param examples: List of PaperTargets from read_example
+
+        :return: List of PaperAssessFeature.
+        """
         features = []
         for example in examples:
             document = example.abstract
@@ -144,6 +158,13 @@ class Preprocessor:
         return raw_data
 
     def split_data(self, examples: List[PaperAssessFeature]) -> Dict[str, List[PaperAssessFeature]]:
+        """
+        Split preprocessed data into train/dev/test splits.
+
+        :param examples: List of features
+
+        :return: Splitted features
+        """
         random.shuffle(examples)
         split1, split2 = int(len(examples) * 0.8), int(len(examples) * 0.9)
         features = {
@@ -154,7 +175,11 @@ class Preprocessor:
         return features
 
     def preprocess(self) -> Tuple[PaperAssessDataset, PaperAssessDataset, PaperAssessDataset]:
+        """
+        Preprocess data. Read, extract features, and split features into train/dev/test.
 
+        :return: Splitted datasets
+        """
         # Load dataset
         raw_data = self.read_data()
         examples = self.read_example(raw_data)
@@ -197,6 +222,14 @@ class Preprocessor:
         return self.preprocess()
 
     def _pad_ids(self, input_ids: List[List[int]], pad_id: int) -> List[List[int]]:
+        """
+        Pad ids so that all ids in a batch have same length.
+
+        :param input_ids: Batch input ids.
+        :param pad_id: ID of PAD
+
+        :return: List of padded batch ids.
+        """
         # max_seq_len = max([len(x) for x in input_ids])
         padded_input_ids = []
         for ids in input_ids:

@@ -12,6 +12,15 @@ from preprocess import Preprocessor
 
 
 def validate(model: Any, loader: DataLoader, device: torch.device) -> float:  # type: ignore[type-arg]
+    """
+    Validate/test the trained model.
+
+    :param model: Analysis generation model to validate/test.
+    :param loader: Validation/Test data loader.
+    :param device: Device to run (CUDA/CPU)
+
+    :return: Validation loss
+    """
     model.eval()
     total_loss = 0
     data_size = 0
@@ -32,6 +41,7 @@ def validate(model: Any, loader: DataLoader, device: torch.device) -> float:  # 
 
 
 def train(args: argparse.Namespace) -> None:
+    """Train the analysis generation model."""
     # Hyperparameters
     hp = Hyperparameter()
     device = torch.device(f"cuda:{args.gpu_num}" if torch.cuda.is_available() else "cpu")

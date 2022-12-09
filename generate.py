@@ -14,6 +14,17 @@ from hparams import Hyperparameter
 def generate(
     abstract: str, model: Any, tokenizer: Any, device: torch.device, max_length: int = 15
 ) -> str:
+    """
+    Generate analysis from abstract.
+
+    :param abstract: abstract text
+    :param model: Trained model
+    :param tokenizer: Tokenizer
+    :param device: Device to run
+    :param max_length: maximum length of analysis.
+
+    :return: Analysis text (TL;DR, Strength, Weakness)
+    """
     model.eval()
 
     abstract_ids = tokenizer.encode(abstract)[1:-1]
@@ -51,6 +62,7 @@ def generate(
 
 
 def main(args: argparse.Namespace) -> None:
+    """Generate analyses from test data."""
     if args.task == "tldr":
         path = "crawled/reviews_with_weaknesses.pkl"
     else:

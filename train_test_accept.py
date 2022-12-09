@@ -14,6 +14,14 @@ from preprocess import Preprocessor
 
 
 def get_acc(scores: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
+    """
+    Compute accuracy between prediction and true label.
+
+    :param scores: Model predicted probabilities.
+    :param y: True labels.
+
+    :return: Accuracy
+    """
     predictions = (scores > 0.5).long()
     num_correct = (predictions == y).sum()
     num_samples = predictions.size(0)
@@ -23,6 +31,16 @@ def get_acc(scores: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
 
 
 def validate(model: Any, loader: DataLoader, device: torch.device, criterion: nn.Module) -> Tuple[float, float]:  # type: ignore[type-arg]
+    """
+    Validate the model
+
+    :param model: Model to validate
+    :param loader: Validation data loader.
+    :param device: Device to run (CUDA/CPU)
+    :param criterion: Criterion module for loss calculation.
+
+    :return: Validation loss and validation accuracy.
+    """
     model.eval()
     total_loss = 0
     num_correct = 0
@@ -60,6 +78,17 @@ def test(
     device: torch.device,
     criterion: nn.Module,
 ) -> Dict[str, float]:
+    """
+    Run acceptance predictor test.
+
+    :param model_save_path: Path for model loading.
+    :param model: Model for test.
+    :param test_loader: Test dataloader.
+    :param device: Device to run (CUDA/CPU)
+    :param criterion: Criterion module for loss calculation.
+
+    :return: Dictionary containing test loss and test accuracy.
+    """
     print("[Testing]")
     dic = torch.load(model_save_path)
     model.load_state_dict(dic["model_state_dict"])
@@ -69,6 +98,7 @@ def test(
 
 
 def train(args: argparse.Namespace) -> None:
+    """Train the acceptance predictor."""
     if args.use_wandb:
         wandb.login(key="")
         run = wandb.init(

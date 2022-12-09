@@ -7,6 +7,14 @@ from tqdm import tqdm
 
 
 def get_review_content(review: Dict[str, Any], weakness: bool) -> Dict[str, Union[str, bool]]:
+    """
+    Extract content (Strength, Weakness, overall review, rating) from review.
+
+    :param review: Raw review content
+    :param weakness: Whether to include weakness
+
+    :return: Dictionary of processed review data.
+    """
     res = {}
     if weakness:
         try:
@@ -30,6 +38,15 @@ def get_review_content(review: Dict[str, Any], weakness: bool) -> Dict[str, Unio
 def get_reviews(
     venue: str, submissions: List[openreview.Note], weakness: bool
 ) -> List[Dict[str, Union[str, bool]]]:
+    """
+    Collect reviews from given venue
+
+    :param venue: Determine reviews to collect.
+    :param submissions: List of submitted reviews
+    :param weakness: Whether to include weakness or not
+
+    :return: Dictionary of extracted & processed reviews.
+    """
     result = []
     for submission in submissions:
         content: Dict[str, Any] = submission.content
@@ -66,6 +83,11 @@ def get_reviews(
 
 
 def main(weakness: bool) -> None:
+    """
+    Collect reviews.
+
+    :param weakness: Whether to include weakness or not
+    """
     client = openreview.Client(baseurl="https://api.openreview.net")
     venues: List[str] = client.get_group(id="venues").members
 

@@ -12,6 +12,14 @@ from hparams import Hyperparameter
 
 
 def get_analysis(abstract: str, task: str) -> Union[str, float]:
+    """
+    Run analysis generation/prediction for single abstract-single task.
+
+    :param abstract: Abstract text
+    :param task: Task to run (tldr, strength, weakness, accepted)
+
+    :return: Acceptance score or generated analysis
+    """
     torch.cuda.empty_cache()
     load_dir = Path(f"checkpoints/{task}/bert-base-uncased")
     with open(load_dir / "hp.json") as f:
@@ -51,6 +59,7 @@ INITIAL_STATE = {"abstract": "", "tldr": "", "strength": "", "weakness": "", "ac
 
 
 def main() -> None:
+    """Run streamlit app."""
     for key, val in INITIAL_STATE.items():
         if key not in st.session_state:
             st.session_state[key] = val
