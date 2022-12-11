@@ -102,16 +102,13 @@ def main() -> None:
     st.write("* * *")
     st.header("Result")
 
-    st.subheader("TL;DR")
-    st.text(st.session_state["tldr"])
+    st.text_area(label="TL;DR", value=st.session_state["tldr"], disabled=True)
 
-    st.subheader("Strength")
-    st.text(st.session_state["strength"])
+    st.text_area(label="Strength", value=st.session_state["strength"], disabled=True)
 
-    st.subheader("Weakness")
-    st.text(st.session_state["weakness"])
+    st.text_area(label="Weakness", value=st.session_state["weakness"], disabled=True)
 
-    st.subheader("Acceptance score")
+    st.text("Acceptance score")
     st.text(st.session_state["accepted"])
     st.write("**Accepted!**" if st.session_state["accepted"] > 0.5 else "Rejected")
 
